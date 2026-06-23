@@ -1,5 +1,14 @@
 # Swerdlow Multi-Phase Cockpit Model
 
+> **Current deliverable:** `Swerdlow_Management_Platform.xlsx` (+ `vba_platform/`)
+> — the reshaped single-tab **Management Console** with the blue **[INPUT]** ⇄
+> green **[Current]** side-by-side layout, a single **Project** selector, and a
+> **Publish** flow that versions records in the relational database. See
+> **[PLATFORM.md](PLATFORM.md)**. The original `Swerdlow_Cockpit_Model.xlsx`
+> below is the earlier iteration it was reshaped from.
+
+---
+
 Scalable input template / "cockpit" for a large multi-phase real estate
 development program, built to `Cockpit_Model_Build_Spec.txt`.
 
