@@ -195,25 +195,50 @@ def build_cockpit():
     inp(ws, "C7", "", fmt=FMT_TXT, align="left"); ws.merge_cells("C7:E7")
     name("Console_Notes", "Cockpit", "$C$7")
 
-    # ---------- KPI strip ----------
-    st(ws.cell(row=9, column=2, value="KPIs (from working inputs)"), bold=True,
-       color=C_HDRTXT, fill=fill_hdr)
-    for col in range(2, 11):
-        ws.cell(row=9, column=col).fill = fill_hdr
-        ws.cell(row=9, column=col).font = Font(name=FONT, color=C_HDRTXT, bold=True, size=9)
-    kpis = ["Total Units", "Total NSF", "EGR", "NOI", "OpEx Ratio", "NOI/Unit",
-            "Total Dev Cost", "Cost/Unit", "Yield on Cost"]
-    kpi_cell = {}
-    for i, k in enumerate(kpis):
-        col = get_column_letter(2 + i)
-        st(ws.cell(row=10, column=2 + i, value=k), bold=True, fill=fill_kpi, align="center",
-           border=box, size=8, wrap=True)
-        kpi_cell[k] = f"{col}11"
-        st(ws[f"{col}11"], bold=True, fill=fill_kpi, align="center", border=box, size=9)
-    ws.row_dimensions[10].height = 26
+    # ---------- KPI panel (two bands: Returns & Value, Cost & Physical) ----------
+    kpi_cols = ["B", "C", "D", "E", "G", "H", "I", "J", "K"]  # skip narrow spacer F
+
+    def kpi_band(brow, title):
+        for cl in "BCDEFGHIJK":
+            ws[f"{cl}{brow}"].fill = fill_hdr
+        st(ws[f"B{brow}"], color=C_HDRTXT, bold=True, size=10); ws[f"B{brow}"] = title
+
+    def kpi_set(label_row, value_row, items):
+        for col, label, formula, fmt in items:
+            lc = ws[f"{col}{label_row}"]; lc.value = label
+            st(lc, bold=True, fill=fill_kpi, align="center", border=box, size=8, wrap=True)
+            vc = ws[f"{col}{value_row}"]; vc.value = formula
+            st(vc, bold=True, fill=fill_kpi, align="center", border=box, size=11, fmt=fmt)
+        ws.row_dimensions[label_row].height = 24
+
+    kpi_band(9, "KEY METRICS  -  Returns & Value   (from working blue inputs; "
+                "IRR / equity multiple / cash-on-cash arrive with the CF engine)")
+    kpi_set(10, 11, [
+        ("B", "Untrended Yield on Cost", "=IFERROR(NOI_In/TDC_In,0)", FMT_PCT2),
+        ("C", "Dev Spread (YoC - Cap)", "=IFERROR(NOI_In/TDC_In,0)-ExitCap_Cell", FMT_PCT2),
+        ("D", "Exit Cap Rate", "=ExitCap_Cell", FMT_PCT2),
+        ("E", "Stabilized Value", "=IFERROR(NOI_In/ExitCap_Cell,0)", FMT_CCY),
+        ("G", "Development Profit", "=IFERROR(NOI_In/ExitCap_Cell,0)-TDC_In", FMT_CCY),
+        ("H", "Development Margin", "=IFERROR((NOI_In/ExitCap_Cell-TDC_In)/TDC_In,0)", FMT_PCT),
+        ("I", "NOI", "=NOI_In", FMT_CCY),
+        ("J", "EGR", "=EGR_In", FMT_CCY),
+        ("K", "OpEx Ratio", "=OpExRatio_In", FMT_PCT),
+    ])
+    kpi_band(12, "KEY METRICS  -  Cost & Physical")
+    kpi_set(13, 14, [
+        ("B", "Total Dev Cost", "=TDC_In", FMT_CCY),
+        ("C", "Cost / Unit", "=IFERROR(TDC_In/Units_Total,0)", FMT_CCY),
+        ("D", "Cost / GSF", "=IFERROR(TDC_In/N(GSF_Cell),0)", FMT_PUPM),
+        ("E", "Value / Unit", "=IFERROR((NOI_In/ExitCap_Cell)/Units_Total,0)", FMT_CCY),
+        ("G", "Total Units", "=Units_Total", FMT_CNT),
+        ("H", "Units / Acre", "=IFERROR(Units_Total/N(LandAcres_Cell),0)", FMT_NUM2),
+        ("I", "FAR", "=IFERROR(N(GSF_Cell)/(N(LandAcres_Cell)*43560),0)", FMT_NUM2),
+        ("J", "Efficiency (NSF/GSF)", "=IFERROR(N(NSF_Cell)/N(GSF_Cell),0)", FMT_PCT),
+        ("K", "Avg Unit SF", "=AvgSF_In", FMT_CNT),
+    ])
 
     groups = []
-    row = 13
+    row = 16
 
     def section(title):
         nonlocal row
@@ -260,12 +285,15 @@ def build_cockpit():
     scalar("Phase No.", "PhaseNo", 3, FMT_CNT)
     scalar("Project Name", "ProjectName", "RAD 1", FMT_TXT, required=True)
     scalar("Land Size (Acres)", "LandAcres", 2, FMT_NUM2)
+    name("LandAcres_Cell", "Cockpit", f"$D${row-1}")
     scalar("Closing Date", "ClosingDate", date(2026, 7, 1), FMT_DATE, required=True)
     name("Closing_Date_Cell", "Cockpit", f"$D${row-1}")
     scalar("Gross Building Area (GSF)", "GSF", 240000, FMT_CNT, required=True)
     name("GSF_Cell", "Cockpit", f"$D${row-1}")
     scalar("Net Rentable Area (NSF)", "NSF", 200000, FMT_CNT)
     name("NSF_Cell", "Cockpit", f"$D${row-1}")
+    scalar("Exit / Stabilized Cap Rate", "ExitCapRate", 0.055, FMT_PCT)
+    name("ExitCap_Cell", "Cockpit", f"$D${row-1}")
     groups.append((s + 1, row - 1))
 
     # ======================= (2) Key Dates =======================
@@ -329,9 +357,9 @@ def build_cockpit():
         dvb = DataValidation(type="list", formula1="=UnitType_List", allow_blank=True)
         ws.add_data_validation(dvb); dvb.add(ws[f"B{r}"])
         reg(f"UM{i+1}_Type", f"Cockpit!$B${r}")
-        inp(ws, f"C{r}", 1, fmt=FMT_CNT); reg(f"UM{i+1}_Count", f"Cockpit!$C${r}")
-        inp(ws, f"D{r}", 2000, fmt=FMT_CNT); reg(f"UM{i+1}_AvgSF", f"Cockpit!$D${r}")
-        inp(ws, f"E{r}", [2000, 1500, 1000, 1000][i], fmt=FMT_CCY); reg(f"UM{i+1}_PUPM", f"Cockpit!$E${r}")
+        inp(ws, f"C{r}", [40, 80, 60, 20][i], fmt=FMT_CNT); reg(f"UM{i+1}_Count", f"Cockpit!$C${r}")
+        inp(ws, f"D{r}", [550, 750, 1050, 1300][i], fmt=FMT_CNT); reg(f"UM{i+1}_AvgSF", f"Cockpit!$D${r}")
+        inp(ws, f"E{r}", [1800, 2200, 2900, 3500][i], fmt=FMT_CCY); reg(f"UM{i+1}_PUPM", f"Cockpit!$E${r}")
         # green mirrors
         lab(ws, f"G{r}", u, color=C_CURR, indent=0)
         cur(ws, f"H{r}", green(gc2(f"UM{i+1}_Count"), FMT_CNT), fmt=FMT_CNT)
@@ -492,22 +520,6 @@ def build_cockpit():
     name("TDC_In", "Cockpit", f"$E${tr}"); name("TDC_Cur", "Cockpit", f"$J${tr}")
     row = tr + 2
     groups.append((s + 1, row - 1))
-
-    # ---------- KPI formulas (from working inputs) ----------
-    kf = {
-        "Total Units": ("=Units_Total", FMT_CNT),
-        "Total NSF": ("=NSF_Cell", FMT_CNT),
-        "EGR": ("=EGR_In", FMT_CCY),
-        "NOI": ("=NOI_In", FMT_CCY),
-        "OpEx Ratio": ("=OpExRatio_In", FMT_PCT),
-        "NOI/Unit": ("=IFERROR(NOI_In/Units_Total,0)", FMT_CCY),
-        "Total Dev Cost": ("=TDC_In", FMT_CCY),
-        "Cost/Unit": ("=IFERROR(TDC_In/Units_Total,0)", FMT_CCY),
-        "Yield on Cost": ("=IFERROR(NOI_In/TDC_In,0)", FMT_PCT),
-    }
-    for k, (f, fmt) in kf.items():
-        ws[kpi_cell[k]] = f
-        st(ws[kpi_cell[k]], bold=True, fill=fill_kpi, align="center", border=box, fmt=fmt, size=9)
 
     # grouping + protection
     for a, b in groups:
