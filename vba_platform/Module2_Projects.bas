@@ -8,7 +8,9 @@ Public Sub Add_Project()
     phase = Trim(InputBox("Phase No. (optional):", "Add Project", "1"))
     Dim ls As Worksheet: Set ls = ThisWorkbook.Sheets("Lists")
     Dim r As Long: r = ls.Cells(ls.Rows.Count, 1).End(xlUp).Row + 1
+    ls.Unprotect
     ls.Cells(r, 1).Value = proj
+    ls.Protect
     ' seed a blank Current record
     Dim db As Worksheet: Set db = ThisWorkbook.Sheets("Database")
     Dim lastRow As Long: lastRow = db.Cells(db.Rows.Count, 1).End(xlUp).Row
@@ -16,12 +18,14 @@ Public Sub Add_Project()
     Dim nr As Long: nr = lastRow + 1
     Dim nid As Long
     If lastRow >= 5 Then nid = Application.WorksheetFunction.Max(db.Range("A5:A" & lastRow)) + 1 Else nid = 1
+    db.Unprotect
     db.Cells(nr, 1).Value = nid
     db.Cells(nr, 2).Value = proj
     db.Cells(nr, 3).Value = "Current"
     db.Cells(nr, 4).Value = Now
     db.Cells(nr, 5).Value = Environ("Username")
     db.Cells(nr, 6).Value = "seed (Add Project); Phase " & phase
+    db.Protect
     ThisWorkbook.Sheets("Cockpit").Range("SelectedProject").Value = proj
     MsgBox "Added project " & proj & " and selected it.", vbInformation
 End Sub

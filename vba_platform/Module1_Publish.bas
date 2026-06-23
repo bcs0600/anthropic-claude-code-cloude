@@ -99,6 +99,8 @@ Public Sub Publish_Project()
     Dim lastRow As Long: lastRow = db.Cells(db.Rows.Count, 1).End(xlUp).Row
     If lastRow < FIRST Then lastRow = HDR
 
+    db.Unprotect          ' Database is locked for hand-editing; unlock for the macro
+
     ' demote this project's existing Current rows to Historical
     Dim r As Long
     For r = FIRST To lastRow
@@ -130,6 +132,7 @@ Public Sub Publish_Project()
     Next i
 
     EnforceCap db, proj
+    db.Protect            ' re-lock the system of record
     Application.ScreenUpdating = True
     Application.Calculate
     MsgBox "Published record #" & newID & " for " & proj & ".", vbInformation
@@ -163,7 +166,9 @@ Private Sub ArchiveRow(db As Worksheet, srcRow As Long)
     If ar Is Nothing Then Exit Sub
     Dim dest As Long: dest = ar.Cells(ar.Rows.Count, 1).End(xlUp).Row + 1
     If dest < 4 Then dest = 4
+    ar.Unprotect
     db.Rows(srcRow).Copy
     ar.Rows(dest).PasteSpecial xlPasteValues
     Application.CutCopyMode = False
+    ar.Protect
 End Sub
